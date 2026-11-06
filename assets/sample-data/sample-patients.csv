@@ -1,0 +1,6 @@
+NationalHealthID,Postal,Phone,EmailAddress,PatientAge
+9434765803,SW1A 1AA,+447123456789,john.smith@example.co.uk,42
+9434765811,EC1A 1BB,07987654321,sarah.jones@nhs.net,29
+9434765846,SW1A 2AA,01234,claire.test@nhs.net,51
+1234567890,INVALID POST,01234,bad-email,not_a_number
+9434765838,W1A 0AX,+442079460912,alice.wonder@hospital.org,35

@@ -1,0 +1,202 @@
+{
+  "projectId": "enterprise-client-ingest-v1",
+  "name": "Enterprise Client & Partner Ingestion Profile",
+  "version": "1.2.0",
+  "author": {
+    "username": "sysadmin",
+    "email": "operations@enterprise.org"
+  },
+  "destination": {
+    "postUrl": "https://api.enterprise.org/v1/ingest/clients",
+    "headers": {
+      "Authorization": "Bearer {{TOKEN}}",
+      "Content-Type": "application/json"
+    }
+  },
+  "layouts": [
+    {
+      "id": "layout_supplier_standard",
+      "name": "Supplier Standard XLSX (Client Ledger)",
+      "fileType": "xlsx",
+      "filePassword": "",
+      "sheetStrategy": {
+        "mode": "regex",
+        "presetName": "ClientData",
+        "regexPattern": "^(Client|Customer|Account)[_\\-\\s]?\\d*$",
+        "dateFormatString": "YYYY-MM-DD"
+      },
+      "offset": {
+        "offsetX": 0,
+        "offsetY": 1,
+        "autoDetect": true,
+        "maxColumns": "Auto",
+        "maxRows": "Auto"
+      },
+      "mappings": [
+        {
+          "sourceColumn": "Account Code",
+          "targetColumn": "account_id",
+          "fallbackIndex": "A2",
+          "transform": "UPPERCASE",
+          "validations": [
+            { "type": "NotEmpty" }
+          ]
+        },
+        {
+          "sourceColumn": "Organization Name",
+          "targetColumn": "client_name",
+          "fallbackIndex": "B2",
+          "transform": "TRIM",
+          "validations": [
+            { "type": "NotEmpty" }
+          ]
+        },
+        {
+          "sourceColumn": "Primary Email",
+          "targetColumn": "email",
+          "fallbackIndex": "C2",
+          "transform": "LOWERCASE",
+          "validations": [
+            { "type": "IsEmail" }
+          ]
+        },
+        {
+          "sourceColumn": "Direct Phone",
+          "targetColumn": "phone_number",
+          "fallbackIndex": "D2",
+          "transform": "TRIM",
+          "ignorable": true,
+          "defaultValue": "N/A",
+          "validations": [
+            { "type": "IsPhoneNumber", "ignorable": true }
+          ]
+        },
+        {
+          "sourceColumn": "Billing Postcode",
+          "targetColumn": "postal_code",
+          "fallbackIndex": "E2",
+          "transform": "UPPERCASE",
+          "validations": [
+            { "type": "IsPostcode" }
+          ]
+        },
+        {
+          "sourceColumn": "Account Status",
+          "targetColumn": "status",
+          "fallbackIndex": "F2",
+          "transform": "CAPITALIZE",
+          "ignorable": true,
+          "defaultValue": "Active",
+          "validations": []
+        }
+      ]
+    },
+    {
+      "id": "layout_csv_partner",
+      "name": "Partner Direct CSV Export",
+      "fileType": "csv",
+      "filePassword": "",
+      "sheetStrategy": {
+        "mode": "first_sheet",
+        "presetName": "",
+        "regexPattern": "",
+        "dateFormatString": ""
+      },
+      "offset": {
+        "offsetX": 0,
+        "offsetY": 0,
+        "autoDetect": false,
+        "maxColumns": "Auto",
+        "maxRows": "Auto"
+      },
+      "mappings": [
+        {
+          "sourceColumn": "ClientID",
+          "targetColumn": "account_id",
+          "transform": "UPPERCASE",
+          "validations": [{ "type": "NotEmpty" }]
+        },
+        {
+          "sourceColumn": "CompanyName",
+          "targetColumn": "client_name",
+          "transform": "TRIM",
+          "validations": [{ "type": "NotEmpty" }]
+        },
+        {
+          "sourceColumn": "EmailAddress",
+          "targetColumn": "email",
+          "transform": "LOWERCASE",
+          "validations": [{ "type": "IsEmail" }]
+        },
+        {
+          "sourceColumn": "Phone",
+          "targetColumn": "phone_number",
+          "transform": "TRIM",
+          "ignorable": true,
+          "defaultValue": "N/A",
+          "validations": [{ "type": "IsPhoneNumber", "ignorable": true }]
+        },
+        {
+          "sourceColumn": "ZipPostal",
+          "targetColumn": "postal_code",
+          "transform": "UPPERCASE",
+          "validations": [{ "type": "IsPostcode" }]
+        },
+        {
+          "sourceColumn": "Status",
+          "targetColumn": "status",
+          "transform": "CAPITALIZE",
+          "ignorable": true,
+          "defaultValue": "Active",
+          "validations": []
+        }
+      ]
+    }
+  ],
+  "targetColumns": [
+    {
+      "key": "account_id",
+      "label": "Account ID",
+      "required": true,
+      "defaultValue": "",
+      "defaultValidations": ["NotEmpty"]
+    },
+    {
+      "key": "client_name",
+      "label": "Client / Company Name",
+      "required": true,
+      "defaultValue": "",
+      "defaultValidations": ["NotEmpty"]
+    },
+    {
+      "key": "email",
+      "label": "Email Address",
+      "required": true,
+      "defaultValue": "",
+      "defaultValidations": ["IsEmail"]
+    },
+    {
+      "key": "phone_number",
+      "label": "Phone Number",
+      "required": false,
+      "ignorable": true,
+      "defaultValue": "N/A",
+      "defaultValidations": ["IsPhoneNumber"]
+    },
+    {
+      "key": "postal_code",
+      "label": "Postal Code",
+      "required": false,
+      "defaultValue": "UNKNOWN",
+      "defaultValidations": ["IsPostcode"]
+    },
+    {
+      "key": "status",
+      "label": "Status",
+      "required": false,
+      "ignorable": true,
+      "defaultValue": "Active",
+      "defaultValidations": []
+    }
+  ]
+}

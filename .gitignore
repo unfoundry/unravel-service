@@ -1,0 +1,24 @@
+# Environment & Secrets
+.env
+.env.local
+
+# Databases & Runtime State
+*.db
+*.sqlite
+*.sqlite3
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# OS artifacts
+.DS_Store
+*.log
+

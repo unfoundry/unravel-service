@@ -1,0 +1,975 @@
+{% extends "base.html" %}
+
+{% block title %}Unravel - Admin Dashboard & Schema Manager{% endblock %}
+
+{% block navbar_actions %}
+  <!-- Auto-Refresh Toggle -->
+  <div class="form-check form-switch small mb-0 d-flex align-items-center gap-1 me-1">
+    <input class="form-check-input mt-0" type="checkbox" id="auto-refresh-toggle" checked onchange="toggleAutoRefresh(this.checked)">
+    <label class="form-check-label text-muted" for="auto-refresh-toggle" style="font-size: 0.78rem;">Auto 15s</label>
+  </div>
+
+  <button onclick="refreshAllMetrics()" class="btn btn-sm btn-light border" title="Refresh all stats">
+    <i class="bi bi-arrow-clockwise" id="refresh-icon"></i>
+  </button>
+
+  <button onclick="exportMetricsJson()" class="btn btn-sm btn-outline-secondary" title="Export Telemetry JSON">
+    <i class="bi bi-download me-1"></i>Export
+  </button>
+
+  <!-- Admin Purge Logs Button with SweetAlert confirmation -->
+  <button onclick="confirmPurgeLogs()" class="btn btn-sm btn-outline-danger" title="Purge all telemetry sessions and delivery logs">
+    <i class="bi bi-trash3 me-1"></i>Purge Logs
+  </button>
+
+  <div class="vr bg-secondary opacity-25 mx-1 d-none d-sm-block"></div>
+
+  <!-- User Badge & Sign Out -->
+  <span class="badge {{ method_badge_class }} border">{{ user_name }}</span>
+  <button onclick="logoutAdmin()" class="btn btn-sm btn-danger ms-1" title="Sign out">
+    <i class="bi bi-box-arrow-right"></i>
+  </button>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <!-- KPI Metric Summary Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl">
+      <div class="card card-custom h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-muted small fw-bold text-uppercase">Ingest Throughput</span>
+            <i class="bi bi-database-check fs-4 text-primary"></i>
+          </div>
+          <div class="stat-val text-primary" id="kpi-rows">0</div>
+          <div class="small text-muted mt-1">
+            <span class="badge badge-soft-success" id="kpi-clean-rate">100%</span>
+            <span class="ms-1" id="kpi-valid-rows">0 valid rows</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+      <div class="card card-custom h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-muted small fw-bold text-uppercase">Ingest Sessions</span>
+            <i class="bi bi-play-circle fs-4 text-info"></i>
+          </div>
+          <div class="stat-val text-info" id="kpi-sessions">0</div>
+          <div class="small text-muted mt-1">
+            <span id="kpi-avg-rows">0</span> avg rows/session
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+      <div class="card card-custom h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-muted small fw-bold text-uppercase">Validation Errors</span>
+            <i class="bi bi-exclamation-octagon fs-4 text-danger"></i>
+          </div>
+          <div class="stat-val text-danger" id="kpi-errors">0</div>
+          <div class="small text-muted mt-1">
+            Across <span id="kpi-pain-count">0</span> failing rules
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+      <div class="card card-custom h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-muted small fw-bold text-uppercase">Broker Dispatches</span>
+            <i class="bi bi-send-check fs-4 text-success"></i>
+          </div>
+          <div class="stat-val text-success" id="kpi-dispatches">0</div>
+          <div class="small text-muted mt-1">
+            <span class="badge badge-soft-success" id="kpi-dispatch-rate">100%</span>
+            <span class="ms-1" id="kpi-latency">0ms avg</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+      <div class="card card-custom h-100 border-start border-primary" style="border-left-width: 4px !important;">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-muted small fw-bold text-uppercase">Hosted Schemas</span>
+            <i class="bi bi-diagram-3 fs-4 text-primary"></i>
+          </div>
+          <div class="stat-val text-dark" id="kpi-schemas">0</div>
+          <div class="small text-muted mt-1">
+            Active SQLite project schemas
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Main Navigation Tabs -->
+  <ul class="nav nav-tabs mb-3" id="adminMainTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-schemas" data-bs-toggle="tab" data-bs-target="#pane-schemas" type="button" role="tab">
+        <i class="bi bi-diagram-3 me-1"></i>Project Schemas <span class="badge bg-primary text-white ms-1" id="badge-schema-count">0</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-telemetry" data-bs-toggle="tab" data-bs-target="#pane-telemetry" type="button" role="tab">
+        <i class="bi bi-bar-chart-line me-1"></i>Telemetry & Error Analysis
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-broker" data-bs-toggle="tab" data-bs-target="#pane-broker" type="button" role="tab">
+        <i class="bi bi-send me-1"></i>Destination Broker Deliveries
+      </button>
+    </li>
+  </ul>
+
+  <!-- Tab Contents -->
+  <div class="tab-content" id="adminMainTabsContent">
+
+    <!-- =====================================================================
+         TAB 1: PROJECT SCHEMAS MANAGER (ADMIN-ONLY ADD & EDIT)
+         ===================================================================== -->
+    <div class="tab-pane fade show active" id="pane-schemas" role="tabpanel">
+      <div class="card card-custom mb-4">
+        <div class="card-header bg-white py-3 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2 border-bottom">
+          <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-folder2-open text-primary me-2"></i>Published Project Schemas</h6>
+            <div class="text-muted small">Centralized repository of canonical schemas available for client ingestion and headless processing. Only admins can create and modify schemas.</div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-primary" onclick="openAddSchemaModal()">
+              <i class="bi bi-plus-circle me-1"></i>Add New Schema
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadProjectSchemas()">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light text-secondary small text-uppercase">
+                <tr>
+                  <th class="ps-3" style="width: 220px;">Project ID</th>
+                  <th>Display Name</th>
+                  <th style="width: 100px;">Version</th>
+                  <th style="width: 200px;">Last Modified</th>
+                  <th class="text-end pe-3" style="width: 240px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="schemas-table-body">
+                <tr>
+                  <td colspan="5" class="text-center py-4 text-muted">
+                    <span class="spinner-border spinner-border-sm me-2"></span>Loading published schemas...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================================
+         TAB 2: TELEMETRY & PAIN-POINTS ANALYSIS
+         ===================================================================== -->
+    <div class="tab-pane fade" id="pane-telemetry" role="tabpanel">
+      
+      <div class="row g-4 mb-4">
+        <!-- Validation Failure Pain-Points Card -->
+        <div class="col-lg-5">
+          <div class="card card-custom h-100">
+            <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
+              <span class="fw-bold text-dark"><i class="bi bi-funnel text-danger me-1"></i>Rule Failure Bottlenecks</span>
+              <span class="badge badge-soft-danger" id="pain-points-badge">0 Failures</span>
+            </div>
+            <div class="card-body p-3" id="pain-points-container" style="max-height: 480px; overflow-y: auto;">
+              <div class="text-center py-4 text-muted">No validation failures logged yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project Usage Breakdown Card -->
+        <div class="col-lg-7">
+          <div class="card card-custom h-100">
+            <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
+              <span class="fw-bold text-dark"><i class="bi bi-pie-chart text-primary me-1"></i>Ingest Volume by Project</span>
+              <span class="text-muted small">Aggregated metrics</span>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light small text-uppercase">
+                    <tr>
+                      <th class="ps-3">Project ID</th>
+                      <th>Sessions</th>
+                      <th>Total Rows</th>
+                      <th>Clean Rows</th>
+                      <th>Errors</th>
+                      <th class="pe-3">Last Active</th>
+                    </tr>
+                  </thead>
+                  <tbody id="project-usage-body">
+                    <tr><td colspan="6" class="text-center py-4 text-muted">No activity data logged yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Telemetry Sessions Log Table -->
+      <div class="card card-custom mb-4">
+        <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
+          <span class="fw-bold text-dark"><i class="bi bi-clock-history text-secondary me-1"></i>Recent Client Ingestion Sessions</span>
+          <span class="badge badge-soft-info" id="session-count-badge">0 Logged</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light small text-uppercase">
+                <tr>
+                  <th class="ps-3">Timestamp</th>
+                  <th>User / Client</th>
+                  <th>Project</th>
+                  <th>Layout</th>
+                  <th>Type</th>
+                  <th>Total Rows</th>
+                  <th>Clean Rows</th>
+                  <th>Errors</th>
+                </tr>
+              </thead>
+              <tbody id="telemetry-sessions-body">
+                <tr><td colspan="8" class="text-center py-4 text-muted">No telemetry sessions available.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =====================================================================
+         TAB 3: DESTINATION BROKER DELIVERIES
+         ===================================================================== -->
+    <div class="tab-pane fade" id="pane-broker" role="tabpanel">
+      <div class="card card-custom mb-4">
+        <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
+          <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-send-check text-success me-2"></i>Zero-Trust Destination Delivery Audits</h6>
+            <div class="text-muted small">Tracks encrypted dispatches to target HTTP endpoints. No payload cell content is persisted.</div>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadBrokerLogs()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh Logs
+          </button>
+        </div>
+
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light small text-uppercase">
+                <tr>
+                  <th class="ps-3">Timestamp</th>
+                  <th>User</th>
+                  <th>Project / Layout</th>
+                  <th>Destination URL</th>
+                  <th>Records</th>
+                  <th>HTTP Status</th>
+                  <th>Latency</th>
+                  <th class="pe-3">Result</th>
+                </tr>
+              </thead>
+              <tbody id="broker-logs-body">
+                <tr><td colspan="8" class="text-center py-4 text-muted">No broker deliveries recorded yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- =========================================================================
+     MODAL: ADD / EDIT PROJECT SCHEMA (ADMIN-ONLY)
+     ========================================================================= -->
+<div class="modal fade" id="schemaModal" tabindex="-1" aria-labelledby="schemaModalLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-white py-3 border-bottom">
+        <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2" id="schemaModalLabel">
+          <i class="bi bi-file-earmark-code text-primary"></i>
+          <span id="schema-modal-title">Add New Project Schema</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body p-4 bg-light">
+        <form id="schemaForm" onsubmit="saveSchemaForm(event)">
+          
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Project ID <span class="text-danger">*</span></label>
+              <input type="text" id="schema-input-id" class="form-control form-control-sm font-monospace" placeholder="e.g. supplier_sales" required>
+              <div class="form-text small">Unique alphanumeric slug identifying this schema.</div>
+            </div>
+
+            <div class="col-md-5">
+              <label class="form-label small fw-bold">Project Display Name <span class="text-danger">*</span></label>
+              <input type="text" id="schema-input-name" class="form-control form-control-sm" placeholder="e.g. Supplier Sales & Inventory" required>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Version</label>
+              <input type="text" id="schema-input-version" class="form-control form-control-sm font-monospace" placeholder="1.0.0" value="1.0.0">
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="form-label small fw-bold mb-0">JSON Schema Definition <span class="text-danger">*</span></label>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.75rem;" onclick="formatSchemaJson()">
+                <i class="bi bi-magic me-1"></i>Format / Beautify
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:0.75rem;" onclick="validateSchemaJson()">
+                <i class="bi bi-check2-circle me-1"></i>Validate JSON
+              </button>
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-primary dropdown-toggle py-0 px-2" style="font-size:0.75rem;" type="button" data-bs-toggle="dropdown">
+                  Load Template
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:0.8rem;">
+                  <li><a class="dropdown-item" href="#" onclick="loadStarterTemplate('minimal')">Minimal Schema</a></li>
+                  <li><a class="dropdown-item" href="#" onclick="loadStarterTemplate('calculated')">With Calculated & Filtered Columns</a></li>
+                  <li><a class="dropdown-item" href="#" onclick="loadStarterTemplate('enterprise')">Enterprise Multi-Layout Ingestion</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <textarea id="schema-input-json" class="form-control font-monospace small bg-white text-dark border" rows="18" spellcheck="false" required style="font-size: 0.82rem; line-height: 1.45;"></textarea>
+          <div id="schema-json-error" class="alert alert-danger small mt-2 py-1 px-2 d-none"></div>
+
+          <div class="modal-footer px-0 pb-0 mt-3 border-top pt-3 bg-light">
+            <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-sm btn-primary px-4 fw-semibold" id="btn-save-schema">
+              <i class="bi bi-floppy me-1"></i>Save Project Schema
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let autoRefreshInterval = null;
+  let cachedTelemetryData = null;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    refreshAllMetrics();
+    loadProjectSchemas();
+    toggleAutoRefresh(true);
+  });
+
+  function toggleAutoRefresh(enable) {
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    if (enable) {
+      autoRefreshInterval = setInterval(() => {
+        refreshAllMetrics(false);
+        loadProjectSchemas(false);
+      }, 15000);
+    }
+  }
+
+  async function refreshAllMetrics(animateIcon = true) {
+    const icon = document.getElementById('refresh-icon');
+    if (icon && animateIcon) icon.classList.add('spin-animation');
+
+    await Promise.all([
+      loadTelemetryStats(),
+      loadBrokerLogs()
+    ]);
+
+    if (icon && animateIcon) {
+      setTimeout(() => icon.classList.remove('spin-animation'), 600);
+    }
+  }
+
+  // =========================================================================
+  // 1. PROJECT SCHEMAS CRUD (ADMIN ONLY)
+  // =========================================================================
+  async function loadProjectSchemas(showSpinner = true) {
+    const tbody = document.getElementById('schemas-table-body');
+    if (showSpinner) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading published schemas...</td></tr>';
+    }
+
+    try {
+      const resp = await fetch('/api/projects');
+      if (!resp.ok) throw new Error('Failed to fetch project schemas');
+      const projects = await resp.json();
+
+      document.getElementById('badge-schema-count').textContent = projects.length;
+      document.getElementById('kpi-schemas').textContent = projects.length;
+
+      if (projects.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center py-5 text-muted">
+              <i class="bi bi-folder-x fs-2 d-block mb-2 text-secondary opacity-50"></i>
+              No project schemas published yet. Click <strong>Add New Schema</strong> to publish your first schema profile.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      let html = '';
+      projects.forEach(p => {
+        const updated = p.updatedAt ? new Date(p.updatedAt).toLocaleString() : 'N/A';
+        html += `
+          <tr>
+            <td class="ps-3"><code class="fw-bold text-primary font-monospace">${escapeHtml(p.projectId)}</code></td>
+            <td class="fw-semibold text-dark">${escapeHtml(p.name)}</td>
+            <td><span class="badge badge-soft-secondary font-monospace">v${escapeHtml(p.version || '1.0.0')}</span></td>
+            <td class="text-muted small"><i class="bi bi-clock me-1"></i>${updated}</td>
+            <td class="text-end pe-3">
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" title="Edit Schema" onclick="openEditSchemaModal('${p.projectId}')">
+                  <i class="bi bi-pencil-square me-1"></i>Edit
+                </button>
+                <button class="btn btn-outline-secondary" title="Download JSON" onclick="downloadSchemaJson('${p.projectId}')">
+                  <i class="bi bi-download"></i>
+                </button>
+                <button class="btn btn-outline-danger" title="Delete Schema" onclick="confirmDeleteSchema('${p.projectId}', '${escapeHtml(p.name)}')">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>${err.message}</td></tr>`;
+    }
+  }
+
+  function openAddSchemaModal() {
+    document.getElementById('schema-modal-title').textContent = 'Add New Project Schema';
+    document.getElementById('schema-input-id').value = '';
+    document.getElementById('schema-input-id').disabled = false;
+    document.getElementById('schema-input-name').value = '';
+    document.getElementById('schema-input-version').value = '1.0.0';
+    document.getElementById('schema-json-error').classList.add('d-none');
+    loadStarterTemplate('minimal');
+
+    const modal = new bootstrap.Modal(document.getElementById('schemaModal'));
+    modal.show();
+  }
+
+  async function openEditSchemaModal(projectId) {
+    try {
+      const resp = await fetch(`/api/projects/${projectId}`);
+      if (!resp.ok) throw new Error(`Could not load schema: ${resp.statusText}`);
+      const schemaData = await resp.json();
+
+      document.getElementById('schema-modal-title').textContent = `Edit Schema: ${projectId}`;
+      document.getElementById('schema-input-id').value = projectId;
+      document.getElementById('schema-input-id').disabled = true;
+      document.getElementById('schema-input-name').value = schemaData.name || projectId;
+      document.getElementById('schema-input-version').value = schemaData.version || '1.0.0';
+      document.getElementById('schema-input-json').value = JSON.stringify(schemaData, null, 2);
+      document.getElementById('schema-json-error').classList.add('d-none');
+
+      const modal = new bootstrap.Modal(document.getElementById('schemaModal'));
+      modal.show();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Load Failed', text: err.message, confirmButtonColor: '#158cba' });
+    }
+  }
+
+  async function saveSchemaForm(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('schema-json-error');
+    errorEl.classList.add('d-none');
+
+    const projectId = document.getElementById('schema-input-id').value.trim();
+    const name = document.getElementById('schema-input-name').value.trim();
+    const version = document.getElementById('schema-input-version').value.trim() || '1.0.0';
+    const jsonStr = document.getElementById('schema-input-json').value;
+
+    let parsedSchema = null;
+    try {
+      parsedSchema = JSON.parse(jsonStr);
+      parsedSchema.projectId = projectId;
+      parsedSchema.name = name;
+      parsedSchema.version = version;
+    } catch (err) {
+      errorEl.textContent = `Invalid JSON syntax: ${err.message}`;
+      errorEl.classList.remove('d-none');
+      return;
+    }
+
+    const saveBtn = document.getElementById('btn-save-schema');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+    try {
+      const resp = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: projectId,
+          name: name,
+          version: version,
+          schema: parsedSchema
+        })
+      });
+
+      const resData = await resp.json();
+      if (!resp.ok || !resData.success) {
+        throw new Error(resData.detail || resData.message || 'Error saving schema');
+      }
+
+      // Close modal & reload schemas table
+      const modalEl = document.getElementById('schemaModal');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Schema Saved',
+        text: `Project schema '${projectId}' published successfully to repository.`,
+        timer: 1800,
+        showConfirmButton: false
+      });
+
+      loadProjectSchemas();
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('d-none');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bi bi-floppy me-1"></i>Save Project Schema';
+    }
+  }
+
+  async function confirmDeleteSchema(projectId, name) {
+    const { isConfirmed } = await Swal.fire({
+      title: `Delete Schema '${projectId}'?`,
+      text: `Are you sure you want to permanently remove "${name}" from the repository?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      confirmButtonText: 'Yes, Delete Schema',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      const resp = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
+      const resData = await resp.json();
+      if (!resp.ok) throw new Error(resData.detail || 'Failed to delete schema');
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Deleted',
+        text: `Schema '${projectId}' was deleted.`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+      loadProjectSchemas();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Delete Failed', text: err.message, confirmButtonColor: '#158cba' });
+    }
+  }
+
+  async function downloadSchemaJson(projectId) {
+    try {
+      const resp = await fetch(`/api/projects/${projectId}`);
+      const data = await resp.json();
+      const str = JSON.stringify(data, null, 2);
+      const blob = new Blob([str], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectId}-config.json`;
+      a.click();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Download Failed', text: err.message });
+    }
+  }
+
+  function formatSchemaJson() {
+    const textarea = document.getElementById('schema-input-json');
+    try {
+      const parsed = JSON.parse(textarea.value);
+      textarea.value = JSON.stringify(parsed, null, 2);
+      document.getElementById('schema-json-error').classList.add('d-none');
+    } catch (err) {
+      document.getElementById('schema-json-error').textContent = `Cannot format invalid JSON: ${err.message}`;
+      document.getElementById('schema-json-error').classList.remove('d-none');
+    }
+  }
+
+  function validateSchemaJson() {
+    const textarea = document.getElementById('schema-input-json');
+    try {
+      const parsed = JSON.parse(textarea.value);
+      if (!parsed.targetColumns || !Array.isArray(parsed.targetColumns)) {
+        throw new Error("Schema must define a 'targetColumns' array.");
+      }
+      document.getElementById('schema-json-error').classList.add('d-none');
+      Swal.fire({
+        icon: 'success',
+        title: 'Valid JSON Schema',
+        text: `Found ${parsed.targetColumns.length} target column(s). Schema structure is valid!`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      document.getElementById('schema-json-error').textContent = `Schema Validation Warning: ${err.message}`;
+      document.getElementById('schema-json-error').classList.remove('d-none');
+    }
+  }
+
+  function loadStarterTemplate(type) {
+    let tpl = {};
+    if (type === 'minimal') {
+      tpl = {
+        name: "Minimal Contact Schema",
+        version: "1.0.0",
+        targetColumns: [
+          { key: "full_name", label: "Full Name", required: true, transforms: [{ type: "TRIM" }] },
+          { key: "email", label: "Email Address", required: true, transforms: [{ type: "LOWERCASE" }], defaultValidations: [{ type: "IsEmail" }] },
+          { key: "phone", label: "Phone Number", required: false, transforms: [{ type: "TRIM" }] }
+        ],
+        layouts: [
+          {
+            id: "default_layout",
+            name: "Standard Header Match",
+            mappings: [
+              { sourceColumn: "Name", targetColumn: "full_name" },
+              { sourceColumn: "Email", targetColumn: "email" },
+              { sourceColumn: "Phone", targetColumn: "phone" }
+            ]
+          }
+        ]
+      };
+    } else if (type === 'calculated') {
+      tpl = {
+        name: "Sales Transaction Schema with Calculated Fields & Row Filters",
+        version: "1.0.0",
+        targetColumns: [
+          { key: "product", label: "Product Name", required: true, transforms: [{ type: "TRIM" }] },
+          { key: "quantity", label: "Quantity", required: true, transforms: [{ type: "CAST_INTEGER" }] },
+          { key: "unit_price", label: "Unit Price", required: true, transforms: [{ type: "CAST_FLOAT", precision: 2 }] }
+        ],
+        calculatedColumns: [
+          { key: "total_cost", label: "Total Cost", expression: "[quantity] * [unit_price]", type: "number" },
+          { key: "tier", label: "Order Tier", expression: "([quantity] > 10) ? 'bulk' : 'retail'", type: "string" }
+        ],
+        rowFilters: {
+          combine: "AND",
+          rules: [
+            { column: "quantity", op: ">", value: 0 },
+            { column: "total_cost", op: "<=", value: 50000 }
+          ]
+        },
+        layouts: [
+          {
+            id: "sales_layout",
+            name: "CSV Ingestion Layout",
+            mappings: [
+              { sourceColumn: "Item", targetColumn: "product" },
+              { sourceColumn: "Qty", targetColumn: "quantity" },
+              { sourceColumn: "Price", targetColumn: "unit_price" }
+            ]
+          }
+        ]
+      };
+    } else {
+      tpl = {
+        name: "Enterprise Multi-Format Ingestion",
+        version: "1.0.0",
+        targetColumns: [
+          { key: "client_id", label: "Client ID", required: true, transforms: [{ type: "TRIM" }] },
+          { key: "postal_code", label: "Postal Code", required: true, transforms: [{ type: "UPPERCASE" }], defaultValidations: [{ type: "IsPostcode" }] },
+          { key: "reg_date", label: "Registration Date", required: false, transforms: [{ type: "CAST_DATE", dateFormatSource: "DD/MM/YYYY", dateFormatTarget: "YYYY-MM-DD" }] }
+        ],
+        layouts: [
+          {
+            id: "legacy_excel",
+            name: "Legacy Worksheets Layout",
+            sheetStrategy: { mode: "first_sheet" },
+            offset: { autoDetect: true, offsetY: 1, offsetX: 0 },
+            mappings: [
+              { sourceColumn: "ClientID", targetColumn: "client_id" },
+              { sourceColumn: "Postcode", targetColumn: "postal_code" },
+              { sourceColumn: "DateRegistered", targetColumn: "reg_date" }
+            ]
+          }
+        ]
+      };
+    }
+    document.getElementById('schema-input-json').value = JSON.stringify(tpl, null, 2);
+    if (!document.getElementById('schema-input-name').value) {
+      document.getElementById('schema-input-name').value = tpl.name;
+    }
+  }
+
+  // =========================================================================
+  // 2. ADMIN ACTION: PURGE LOGS (WITH SWEETALERT CONFIRMATION)
+  // =========================================================================
+  async function confirmPurgeLogs() {
+    const { isConfirmed } = await Swal.fire({
+      title: 'Purge Telemetry & Audit Logs?',
+      html: `
+        <p class="small text-muted mb-2">You are about to permanently delete all:</p>
+        <ul class="text-start small text-danger ps-4 mb-2">
+          <li>Client Ingestion Telemetry Sessions</li>
+          <li>Validation Failure Pain-Point Records</li>
+          <li>Zero-Trust Destination Delivery Dispatches</li>
+        </ul>
+        <p class="small text-danger fw-bold mb-0">⚠️ This action cannot be undone.</p>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      confirmButtonText: 'Yes, Purge All Logs',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({
+      title: 'Purging Logs...',
+      text: 'Clearing telemetry and audit history from SQLite database...',
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      const resp = await fetch('/api/admin/logs/purge', { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        throw new Error(data.detail || data.message || 'Error purging logs');
+      }
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Logs Purged',
+        text: data.message || 'All telemetry sessions and broker logs have been purged.',
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      refreshAllMetrics();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Purge Failed', text: err.message, confirmButtonColor: '#158cba' });
+    }
+  }
+
+  // =========================================================================
+  // 3. TELEMETRY & BROKER LOGS
+  // =========================================================================
+  async function loadTelemetryStats() {
+    try {
+      const resp = await fetch('/api/telemetry/stats');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      cachedTelemetryData = data;
+
+      // KPIs
+      document.getElementById('kpi-rows').textContent = Number(data.totalRowsIngested || 0).toLocaleString();
+      document.getElementById('kpi-sessions').textContent = Number(data.totalSessions || 0).toLocaleString();
+      document.getElementById('kpi-errors').textContent = Number(data.totalErrorsFound || 0).toLocaleString();
+      document.getElementById('kpi-clean-rate').textContent = `${data.cleanDataRate || 100}% Clean`;
+      document.getElementById('kpi-valid-rows').textContent = `${Number(data.totalValidRows || 0).toLocaleString()} valid rows`;
+
+      const avg = data.totalSessions > 0 ? Math.round(data.totalRowsIngested / data.totalSessions) : 0;
+      document.getElementById('kpi-avg-rows').textContent = avg.toLocaleString();
+
+      const painPoints = data.validationPainPoints || [];
+      document.getElementById('kpi-pain-count').textContent = painPoints.length;
+      document.getElementById('pain-points-badge').textContent = `${painPoints.reduce((acc, p) => acc + p.failureCount, 0)} Failures`;
+
+      // Render Pain Points
+      const ppContainer = document.getElementById('pain-points-container');
+      if (painPoints.length === 0) {
+        ppContainer.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-shield-check text-success fs-3 d-block mb-1"></i>No validation rule bottlenecks recorded!</div>';
+      } else {
+        let ppHtml = '<div class="d-flex flex-column gap-3">';
+        painPoints.forEach(p => {
+          ppHtml += `
+            <div>
+              <div class="d-flex justify-content-between align-items-center small mb-1">
+                <span class="fw-semibold text-dark"><code class="text-danger">${escapeHtml(p.rule)}</code></span>
+                <span class="badge badge-soft-danger">${p.failureCount} (${p.percentOfErrors}%)</span>
+              </div>
+              <div class="progress" style="height: 6px;">
+                <div class="progress-bar bg-danger" style="width: ${Math.min(100, p.percentOfErrors * 2)}%"></div>
+              </div>
+            </div>
+          `;
+        });
+        ppHtml += '</div>';
+        ppContainer.innerHTML = ppHtml;
+      }
+
+      // Render Project Usage
+      const puBody = document.getElementById('project-usage-body');
+      const projUsage = data.projectUsageBreakdown || [];
+      if (projUsage.length === 0) {
+        puBody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No activity data logged yet.</td></tr>';
+      } else {
+        let puHtml = '';
+        projUsage.forEach(u => {
+          const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'N/A';
+          puHtml += `
+            <tr>
+              <td class="ps-3 fw-bold text-primary font-monospace">${escapeHtml(u.projectId || 'Default')}</td>
+              <td>${u.sessions}</td>
+              <td>${Number(u.totalRows).toLocaleString()}</td>
+              <td class="text-success">${Number(u.validRows).toLocaleString()}</td>
+              <td class="${u.errorCount > 0 ? 'text-danger fw-bold' : 'text-muted'}">${u.errorCount}</td>
+              <td class="pe-3 text-muted small">${lastSeen}</td>
+            </tr>
+          `;
+        });
+        puBody.innerHTML = puHtml;
+      }
+
+      // Render Sessions
+      const sBody = document.getElementById('telemetry-sessions-body');
+      const sessions = data.recentSessions || [];
+      document.getElementById('session-count-badge').textContent = `${sessions.length} Logged`;
+      if (sessions.length === 0) {
+        sBody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No telemetry sessions available.</td></tr>';
+      } else {
+        let sHtml = '';
+        sessions.forEach(s => {
+          const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : 'N/A';
+          sHtml += `
+            <tr>
+              <td class="ps-3 text-muted small">${timeStr}</td>
+              <td><span class="badge badge-soft-secondary">${escapeHtml(s.userEmail || 'anonymous')}</span></td>
+              <td><code>${escapeHtml(s.projectId || 'N/A')}</code></td>
+              <td><span class="text-muted small">${escapeHtml(s.layoutId || 'Auto')}</span></td>
+              <td><span class="badge bg-light text-dark border text-uppercase" style="font-size:0.7rem;">${escapeHtml(s.fileType || 'file')}</span></td>
+              <td>${Number(s.totalRows).toLocaleString()}</td>
+              <td class="text-success">${Number(s.validRows).toLocaleString()}</td>
+              <td class="${s.errorCount > 0 ? 'text-danger fw-bold' : 'text-muted'}">${s.errorCount}</td>
+            </tr>
+          `;
+        });
+        sBody.innerHTML = sHtml;
+      }
+    } catch (err) {
+      console.warn('Error loading telemetry stats:', err);
+    }
+  }
+
+  async function loadBrokerLogs() {
+    try {
+      const resp = await fetch('/api/admin/broker-logs');
+      if (!resp.ok) return;
+      const logs = await resp.json();
+
+      const delivered = logs.filter(l => l.delivery_status === 'DELIVERED').length;
+      const rate = logs.length > 0 ? Math.round((delivered / logs.length) * 100) : 100;
+      document.getElementById('kpi-dispatches').textContent = logs.length;
+      document.getElementById('kpi-dispatch-rate').textContent = `${rate}% Success`;
+
+      const bBody = document.getElementById('broker-logs-body');
+      if (logs.length === 0) {
+        bBody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No broker deliveries recorded yet.</td></tr>';
+        return;
+      }
+
+      let bHtml = '';
+      logs.forEach(l => {
+        const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString() : 'N/A';
+        const isDelivered = (l.delivery_status === 'DELIVERED');
+        const badgeClass = isDelivered ? 'badge-soft-success' : 'badge-soft-danger';
+        bHtml += `
+          <tr>
+            <td class="ps-3 text-muted small">${timeStr}</td>
+            <td><span class="badge badge-soft-secondary">${escapeHtml(l.user_email || 'anonymous')}</span></td>
+            <td><code>${escapeHtml(l.project_id || 'N/A')}</code> / <span class="text-muted small">${escapeHtml(l.layout_id || 'Default')}</span></td>
+            <td class="font-monospace small text-truncate" style="max-width: 260px;" title="${escapeHtml(l.destination_url)}">${escapeHtml(l.destination_url)}</td>
+            <td>${l.total_rows}</td>
+            <td><span class="badge ${l.status_code >= 200 && l.status_code < 300 ? 'bg-success' : 'bg-danger'}">${l.status_code || 'Err'}</span></td>
+            <td class="text-muted small">${l.duration_ms ? l.duration_ms + 'ms' : '0ms'}</td>
+            <td class="pe-3"><span class="badge ${badgeClass}">${l.delivery_status}</span></td>
+          </tr>
+        `;
+      });
+      bBody.innerHTML = bHtml;
+    } catch (err) {
+      console.warn('Error loading broker logs:', err);
+    }
+  }
+
+  function exportMetricsJson() {
+    if (!cachedTelemetryData) {
+      Swal.fire({ icon: 'info', title: 'No Data', text: 'Telemetry data is loading, please try again.' });
+      return;
+    }
+    const str = JSON.stringify(cachedTelemetryData, null, 2);
+    const blob = new Blob([str], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `unravel-telemetry-${Date.now()}.json`;
+    a.click();
+  }
+
+  async function logoutAdmin() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+    window.location.reload();
+  }
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>
+
+<style>
+  .spin-animation {
+    display: inline-block;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+</style>
+{% endblock %}
+

@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  unravel-service:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+    container_name: unravel-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - UNRAVEL_HOST=0.0.0.0
+      - UNRAVEL_PORT=8001
+      - UNRAVEL_MASTER_PASSWORD=${UNRAVEL_MASTER_PASSWORD:-unravel2026}
+      - UNRAVEL_DB_PATH=/app/data/unravel.db
+    volumes:
+      - unravel_data:/app/data
+
+volumes:
+  unravel_data:
+    name: unravel_data
+

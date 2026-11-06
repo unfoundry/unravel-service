@@ -1,0 +1,7 @@
+ClientID,CompanyName,EmailAddress,Phone,ZipPostal,Status
+AC-1001,Acme Corporation,contact@acme.corp,07987654321,EC1A 1BB,Active
+AC-1002,Global Tech Logistics,ops@globaltech.com,07123456789,SW1A 2AA,Pending
+AC-1003,Starlight Media,hello@starlight.io,07700900123,W1A 1HQ,Active
+AC-1004,Nexus Innovations,info@nexus-inno.org,01234,BAD_POSTCODE,Suspended
+AC-1005,Apex Financials,billing@apex-fin.co.uk,07890123456,M1 1AE,Active
+

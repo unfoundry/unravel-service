@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Unravel - Admin Authentication{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-center py-5" style="min-height: calc(100vh - 120px); background: radial-gradient(circle at 10% 10%, #eef4ff 0%, #f8fafc 100%);">
+  <div class="card card-custom p-4 p-md-5" style="width: 100%; max-width: 480px;">
+    
+    <div class="text-center mb-4">
+      <div class="d-inline-flex p-3 bg-primary bg-opacity-10 rounded-circle text-primary mb-2">
+        <i class="bi bi-speedometer2 fs-2 text-primary"></i>
+      </div>
+      <h3 class="fw-bold text-dark mb-1">Unravel Admin</h3>
+      <p class="text-muted small mb-0">Sign in to manage project schemas, purge logs, and view telemetry metrics</p>
+    </div>
+
+    {% if iis_rejected %}
+    <div class="alert alert-danger small mb-3">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i>
+      IIS Windows User <strong>{{ iis_attempted_user }}</strong> is not authorized in <code>UNRAVEL_AUTH_IIS_ALLOWED_USERS</code>.
+    </div>
+    {% endif %}
+
+    <ul class="nav nav-pills nav-fill mb-3" id="loginTabs" role="tablist">
+      {% if auth_master_enabled %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-semibold small" id="master-tab" data-bs-toggle="pill" data-bs-target="#master-pane" type="button">
+          <i class="bi bi-key me-1"></i>Master Token
+        </button>
+      </li>
+      {% endif %}
+      {% if auth_ldap_enabled %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link {% if not auth_master_enabled %}active{% endif %} fw-semibold small" id="ldap-tab" data-bs-toggle="pill" data-bs-target="#ldap-pane" type="button">
+          <i class="bi bi-people me-1"></i>LDAP / AD
+        </button>
+      </li>
+      {% endif %}
+      {% if auth_iis_enabled %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link {% if not auth_master_enabled and not auth_ldap_enabled %}active{% endif %} fw-semibold small" id="iis-tab" data-bs-toggle="pill" data-bs-target="#iis-pane" type="button">
+          <i class="bi bi-windows me-1"></i>IIS SSO
+        </button>
+      </li>
+      {% endif %}
+    </ul>
+
+    <div class="tab-content" id="loginTabsContent">
+      <!-- Master Token Pane -->
+      {% if auth_master_enabled %}
+      <div class="tab-pane fade show active" id="master-pane" role="tabpanel">
+        <form id="master-form" onsubmit="submitMasterLogin(event)">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Master Password / Token</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-lock"></i></span>
+              <input type="password" id="master-password" class="form-control" placeholder="Enter master token" required autofocus>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 fw-semibold" id="btn-master-submit">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Sign In with Master Token
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+      <!-- LDAP Pane -->
+      {% if auth_ldap_enabled %}
+      <div class="tab-pane fade {% if not auth_master_enabled %}show active{% endif %}" id="ldap-pane" role="tabpanel">
+        <form id="ldap-form" onsubmit="submitLdapLogin(event)">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Active Directory Username</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-person"></i></span>
+              <input type="text" id="ldap-user" class="form-control" placeholder="username or user@domain" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Active Directory Password</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-lock"></i></span>
+              <input type="password" id="ldap-pass" class="form-control" placeholder="Domain password" required>
+            </div>
+          </div>
+          {% if auth_ldap_group_filter %}
+          <div class="alert alert-info small py-2 mb-3">
+            <i class="bi bi-info-circle me-1"></i>Requires membership in AD Group: <code>{{ auth_ldap_group_filter }}</code>
+          </div>
+          {% endif %}
+          <button type="submit" class="btn btn-primary w-100 fw-semibold" id="btn-ldap-submit">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Sign In via LDAP(S)
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+      <!-- IIS SSO Pane -->
+      {% if auth_iis_enabled %}
+      <div class="tab-pane fade {% if not auth_master_enabled and not auth_ldap_enabled %}show active{% endif %}" id="iis-pane" role="tabpanel">
+        <div class="text-center py-3">
+          <i class="bi bi-windows text-primary fs-1 mb-2 d-block"></i>
+          <p class="small text-muted mb-3">
+            IIS Single Sign-On is active. Connecting through your configured IIS Reverse Proxy (Windows Authentication) will automatically log you in.
+          </p>
+          <div class="p-2 bg-light border rounded small font-monospace text-start mb-3">
+            Header: {{ auth_iis_header_name }}<br>
+            Allowed: {{ auth_iis_allowed_users_preview }}
+          </div>
+          <a href="/admin" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-arrow-clockwise me-1"></i>Recheck Windows Header
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div id="login-alert" class="alert alert-danger small mt-3 d-none"></div>
+
+    <div class="text-center mt-4 pt-3 border-top">
+      <a href="/" class="text-decoration-none small text-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Service Status Page
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function submitMasterLogin(e) {
+    e.preventDefault();
+    const pass = document.getElementById("master-password").value;
+    const alertEl = document.getElementById("login-alert");
+    const btn = document.getElementById("btn-master-submit");
+    alertEl.classList.add("d-none");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Verifying...';
+
+    try {
+      const resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pass })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.success) {
+        window.location.reload();
+      } else {
+        alertEl.textContent = data.detail || "Authentication failed.";
+        alertEl.classList.remove("d-none");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Sign In with Master Token';
+      }
+    } catch (err) {
+      alertEl.textContent = "Network error connecting to service.";
+      alertEl.classList.remove("d-none");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Sign In with Master Token';
+    }
+  }
+
+  async function submitLdapLogin(e) {
+    e.preventDefault();
+    const user = document.getElementById("ldap-user").value;
+    const pass = document.getElementById("ldap-pass").value;
+    const alertEl = document.getElementById("login-alert");
+    const btn = document.getElementById("btn-ldap-submit");
+    alertEl.classList.add("d-none");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Verifying Domain...';
+
+    try {
+      const resp = await fetch("/api/auth/login-ldap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, password: pass })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.success) {
+        window.location.reload();
+      } else {
+        alertEl.textContent = data.detail || "LDAP Authentication failed.";
+        alertEl.classList.remove("d-none");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Sign In via LDAP(S)';
+      }
+    } catch (err) {
+      alertEl.textContent = "Network error connecting to service.";
+      alertEl.classList.remove("d-none");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Sign In via LDAP(S)';
+    }
+  }
+</script>
+{% endblock %}
+

@@ -1,0 +1,217 @@
+[
+  {
+    "id": "customer_crm",
+    "name": "Customer CRM",
+    "icon": "bi-people",
+    "description": "Customer ID, Name, Phone, Signup Date",
+    "badge": "Commercial",
+    "enabled": true,
+    "schema": {
+      "projectId": "crm-customers-v1",
+      "name": "Customer CRM Master Ingestion",
+      "version": "1.0.0",
+      "author": { "username": "data.architect", "email": "data@enterprise.org" },
+      "destination": {
+        "postUrl": "https://api.enterprise.org/v2/contacts/sync",
+        "headers": { "Authorization": "Bearer {{API_KEY}}", "Content-Type": "application/json" }
+      },
+      "targetColumns": [
+        { "key": "customer_id", "label": "Customer ID", "required": true, "ignorable": false, "defaultValue": "", "defaultValidations": ["IsAlphanumeric"] },
+        { "key": "full_name", "label": "Full Name", "required": true, "ignorable": false, "defaultValue": "", "defaultValidations": [] },
+        { "key": "email", "label": "Email Address", "required": true, "ignorable": false, "defaultValue": "", "defaultValidations": ["IsEmail"] },
+        { "key": "phone", "label": "Phone Number", "required": false, "ignorable": true, "defaultValue": "N/A", "defaultValidations": ["IsPhoneNumber"] },
+        { "key": "postcode", "label": "Postal Code", "required": false, "ignorable": true, "defaultValue": "", "defaultValidations": ["IsPostcode"] },
+        { "key": "signup_date", "label": "Signup Date", "required": false, "ignorable": false, "defaultValue": "", "defaultValidations": [] }
+      ],
+      "layouts": [
+        {
+          "id": "layout_csv_export",
+          "name": "Standard CSV Export",
+          "fileType": "csv",
+          "filePassword": "",
+          "sheetStrategy": { "mode": "first_sheet", "presetName": "", "regexPattern": "", "dateFormatString": "" },
+          "offset": { "offsetX": 0, "offsetY": 0, "autoDetect": true, "maxColumns": "Auto", "maxRows": "Auto" },
+          "mappings": [
+            { "sourceColumn": "CustomerID", "targetColumn": "customer_id", "transform": "TRIM", "ignorable": false, "defaultValue": "", "validations": [{ "type": "IsAlphanumeric" }] },
+            { "sourceColumn": "CustomerName", "targetColumn": "full_name", "transform": "CAPITALIZE", "ignorable": false, "defaultValue": "", "validations": [] },
+            { "sourceColumn": "Email", "targetColumn": "email", "transform": "LOWERCASE", "ignorable": false, "defaultValue": "", "validations": [{ "type": "IsEmail" }] },
+            { "sourceColumn": "Telephone", "targetColumn": "phone", "transform": "TRIM", "ignorable": true, "defaultValue": "N/A", "validations": [{ "type": "IsPhoneNumber", "ignorable": true }] },
+            { "sourceColumn": "Postcode", "targetColumn": "postcode", "transform": "UPPERCASE", "ignorable": true, "defaultValue": "", "validations": [{ "type": "IsPostcode", "ignorable": true }] },
+            { "sourceColumn": "RegistrationDate", "targetColumn": "signup_date", "transform": "DATE_FORMAT", "dateFormatSource": "DD/MM/YYYY", "dateFormatTarget": "YYYY-MM-DD", "ignorable": false, "defaultValue": "", "validations": [] }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "payroll_staff",
+    "name": "Payroll / HR",
+    "icon": "bi-cash-stack",
+    "description": "Staff ID, Dept, Salary, Hire Date",
+    "badge": "Finance",
+    "enabled": true,
+    "schema": {
+      "projectId": "hr-payroll-roster-v1",
+      "name": "HR Payroll Staff Ingestion",
+      "version": "1.0.0",
+      "author": { "username": "hr.ops", "email": "payroll@enterprise.org" },
+      "destination": {
+        "postUrl": "https://api.payroll.internal/v1/employees",
+        "headers": { "Authorization": "Bearer {{SECRET}}", "Content-Type": "application/json" }
+      },
+      "targetColumns": [
+        { "key": "emp_id", "label": "Staff Number", "required": true, "ignorable": false, "defaultValue": "", "defaultValidations": ["IsAlphanumeric"] },
+        { "key": "employee_name", "label": "Employee Name", "required": true, "ignorable": false, "defaultValue": "", "defaultValidations": [] },
+        { "key": "department", "label": "Department Code", "required": true, "ignorable": false, "defaultValue": "GENERAL", "defaultValidations": [] },
+        { "key": "salary", "label": "Annual Salary (£)", "required": false, "ignorable": true, "defaultValue": "0", "defaultValidations": ["IsInteger"] },
+        { "key": "work_email", "label": "Company Email", "required": true, "ignorable": false, "defaultValue": "", "defaultValidations": ["IsEmail"] },
+        { "key": "start_date", "label": "Hire Date", "required": false, "ignorable": false, "defaultValue": "", "defaultValidations": [] }
+      ],
+      "layouts": [
+        {
+          "id": "layout_hr_excel",
+          "name": "HR Master Spreadsheet (.xlsx)",
+          "fileType": "xlsx",
+          "filePassword": "",
+          "sheetStrategy": { "mode": "preset", "presetName": "Active Employees", "regexPattern": "", "dateFormatString": "" },
+          "offset": { "offsetX": 0, "offsetY": 1, "autoDetect": true, "maxColumns": "Auto", "maxRows": "Auto" },
+          "mappings": [
+            { "sourceColumn": "EmployeeID", "targetColumn": "emp_id", "transform": "TRIM", "ignorable": false, "defaultValue": "", "validations": [{ "type": "IsAlphanumeric" }] },
+            { "sourceColumn": "FullName", "targetColumn": "employee_name", "transform": "CAPITALIZE", "ignorable": false, "defaultValue": "", "validations": [] },
+            { "sourceColumn": "Dept", "targetColumn": "department", "transform": "UPPERCASE", "ignorable": false, "defaultValue": "GENERAL", "validations": [] },
+            { "sourceColumn": "BaseSalary", "targetColumn": "salary", "transform": "TRIM", "ignorable": true, "defaultValue": "0", "validations": [{ "type": "IsInteger", "ignorable": true }] },
+            { "sourceColumn": "Email", "targetColumn": "work_email", "transform": "LOWERCASE", "ignorable": false, "defaultValue": "", "validations": [{ "type": "IsEmail" }] },
+            { "sourceColumn": "HireDate", "targetColumn": "start_date", "transform": "DATE_FORMAT", "dateFormatSource": "YYYY-MM-DD", "dateFormatTarget": "YYYY-MM-DD", "ignorable": false, "defaultValue": "", "validations": [] }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "patient_healthcare",
+    "name": "Healthcare Patient",
+    "icon": "bi-heart-pulse",
+    "description": "Mod 11 Patient/NHS ID, Postcode, Phone, Email",
+    "badge": "Healthcare",
+    "enabled": true,
+    "schema": {
+      "projectId": "healthcare-patient-v1",
+      "name": "Healthcare Patient Ingestion Profile",
+      "version": "1.0.0",
+      "author": {
+        "username": "clinical.admin",
+        "email": "health.admin@healthcare.org"
+      },
+      "destination": {
+        "postUrl": "https://api.healthcare.org/v1/ingest/patients",
+        "headers": {
+          "Authorization": "Bearer {{TOKEN}}",
+          "Content-Type": "application/json"
+        }
+      },
+      "targetColumns": [
+        {
+          "key": "nhs_number",
+          "label": "Patient / NHS Number",
+          "required": true,
+          "ignorable": false,
+          "defaultValue": "",
+          "defaultValidations": ["IsNHSNumber"]
+        },
+        {
+          "key": "postcode",
+          "label": "Postcode",
+          "required": true,
+          "ignorable": false,
+          "defaultValue": "UNKNOWN",
+          "defaultValidations": ["IsPostcode"]
+        },
+        {
+          "key": "phone_number",
+          "label": "Contact Phone",
+          "required": false,
+          "ignorable": true,
+          "defaultValue": "N/A",
+          "defaultValidations": ["IsPhoneNumber"]
+        },
+        {
+          "key": "email",
+          "label": "Email Address",
+          "required": false,
+          "ignorable": false,
+          "defaultValue": "",
+          "defaultValidations": ["IsEmail"]
+        },
+        {
+          "key": "age",
+          "label": "Patient Age",
+          "required": false,
+          "ignorable": false,
+          "defaultValue": "0",
+          "defaultValidations": ["IsInteger"]
+        }
+      ],
+      "layouts": [
+        {
+          "id": "layout_supplier_alpha",
+          "name": "Standard Healthcare Format",
+          "fileType": "xlsx",
+          "filePassword": "",
+          "sheetStrategy": {
+            "mode": "first_sheet",
+            "presetName": "Patients",
+            "regexPattern": "^(Patient|Data).*$",
+            "dateFormatString": "YYYY-MM-DD"
+          },
+          "offset": {
+            "offsetX": 0,
+            "offsetY": 0,
+            "autoDetect": true,
+            "maxColumns": "Auto",
+            "maxRows": "Auto"
+          },
+          "mappings": [
+            { "sourceColumn": "NHS No.", "targetColumn": "nhs_number", "transform": "TRIM", "ignorable": false, "defaultValue": "", "validations": [{ "type": "IsNHSNumber" }] },
+            { "sourceColumn": "Post Code", "targetColumn": "postcode", "transform": "UPPERCASE", "ignorable": false, "defaultValue": "UNKNOWN", "validations": [{ "type": "IsPostcode" }] },
+            { "sourceColumn": "Contact Number", "targetColumn": "phone_number", "transform": "TRIM", "ignorable": true, "defaultValue": "N/A", "validations": [{ "type": "IsPhoneNumber", "ignorable": true }] },
+            { "sourceColumn": "Patient Email", "targetColumn": "email", "transform": "LOWERCASE", "ignorable": false, "defaultValue": "", "validations": [{ "type": "IsEmail" }] },
+            { "sourceColumn": "Age", "targetColumn": "age", "transform": "TRIM", "ignorable": false, "defaultValue": "0", "validations": [{ "type": "IsInteger" }] }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blank",
+    "name": "Blank Schema",
+    "icon": "bi-file-earmark-plus",
+    "description": "Fresh blank schema for custom rules",
+    "badge": "Starter",
+    "enabled": true,
+    "schema": {
+      "projectId": "custom-project-v1",
+      "name": "Custom Ingestion Profile",
+      "version": "1.0.0",
+      "author": { "username": "developer", "email": "dev@example.com" },
+      "destination": {
+        "postUrl": "",
+        "headers": {
+          "Authorization": "Bearer {{TOKEN}}",
+          "Content-Type": "application/json"
+        }
+      },
+      "targetColumns": [],
+      "layouts": [
+        {
+          "id": "layout_default",
+          "name": "Default Layout Profile",
+          "fileType": "csv",
+          "filePassword": "",
+          "sheetStrategy": { "mode": "first_sheet", "presetName": "", "regexPattern": "", "dateFormatString": "" },
+          "offset": { "offsetX": 0, "offsetY": 0, "autoDetect": true, "maxColumns": "Auto", "maxRows": "Auto" },
+          "mappings": []
+        }
+      ]
+    }
+  }
+]
